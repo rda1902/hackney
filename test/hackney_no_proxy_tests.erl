@@ -79,3 +79,45 @@ match_no_proxy_wildcard_test() ->
   ?assert(hackney:match_no_proxy_env('*', "anything")),
   ?assert(hackney:match_no_proxy_env('*', "localhost")),
   ?assert(hackney:match_no_proxy_env('*', "192.168.1.1")).
+
+parse_plain_ip_test() ->
+  ?clear_cache(),
+  Result = hackney:parse_no_proxy_env(["10.1.96.43"], []),
+  ?assertMatch([{cidr, {{10,1,96,43}, {10,1,96,43}, 32}}], Result).
+
+match_plain_ip_exact_test() ->
+  ?clear_cache(),
+  Patterns = hackney:parse_no_proxy_env(["10.1.96.43", "127.0.0.1"], []),
+  ?assert(hackney:match_no_proxy_env(Patterns, "10.1.96.43")),
+  ?assert(hackney:match_no_proxy_env(Patterns, "127.0.0.1")).
+
+match_plain_ip_no_match_test() ->
+  ?clear_cache(),
+  Patterns = hackney:parse_no_proxy_env(["10.1.96.43"], []),
+  ?assertNot(hackney:match_no_proxy_env(Patterns, "34.116.153.98")).
+
+match_cidr_ip_host_test() ->
+  ?clear_cache(),
+  Patterns = hackney:parse_no_proxy_env(["192.168.0.0/16"], []),
+  ?assert(hackney:match_no_proxy_env(Patterns, "192.168.1.100")),
+  ?assertNot(hackney:match_no_proxy_env(Patterns, "10.0.0.1")).
+
+parse_real_world_no_proxy_test() ->
+  ?clear_cache(),
+  Entries = string:tokens(
+    ".fake-corp.example,localhost,127.0.0.1,10.1.96.43,10.1.96.44,"
+    "10.15.123.107,10.15.123.109,storage-api,smart-scripts",
+    ","
+  ),
+  Result = hackney:parse_no_proxy_env(Entries, []),
+  ?assert(length(Result) > 0).
+
+match_mixed_ip_and_hosts_test() ->
+  ?clear_cache(),
+  Entries = string:tokens("localhost,127.0.0.1,10.1.96.43,storage-api", ","),
+  Patterns = hackney:parse_no_proxy_env(Entries, []),
+  ?assert(hackney:match_no_proxy_env(Patterns, "127.0.0.1")),
+  ?assert(hackney:match_no_proxy_env(Patterns, "10.1.96.43")),
+  ?assert(hackney:match_no_proxy_env(Patterns, "storage-api")),
+  ?assert(hackney:match_no_proxy_env(Patterns, "localhost")),
+  ?assertNot(hackney:match_no_proxy_env(Patterns, "34.116.153.98")).
