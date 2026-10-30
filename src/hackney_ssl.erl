@@ -130,11 +130,37 @@ connect(Host, Port, Opts0, Timeout) when is_list(Host), is_integer(Port),
   SSLOpts = proplists:get_value(ssl_options, Opts0),
   BaseOpts = [binary, {active, false}, {packet, raw}],
   Opts1 = hackney_util:merge_opts(BaseOpts, proplists:delete(ssl_options, Opts0)),
+  Started = erlang:monotonic_time(millisecond),
   case hackney_happy:connect(Host, Port, Opts1, Timeout) of
     {ok, Sock} ->
-      ssl:connect(Sock, SSLOpts);
+      %% TCP and TLS share the connection timeout. Never leave the TLS
+      %% handshake unbounded after reserving a slot in the connection pool.
+      Remaining = remaining_timeout(Timeout, Started),
+      ssl_connect(Sock, SSLOpts, Remaining);
     Error ->
       Error
+  end.
+
+remaining_timeout(infinity, _Started) ->
+  infinity;
+remaining_timeout(Timeout, Started) ->
+  Elapsed = erlang:monotonic_time(millisecond) - Started,
+  erlang:max(0, Timeout - Elapsed).
+
+ssl_connect(Sock, _SSLOpts, 0) ->
+  _ = catch gen_tcp:close(Sock),
+  {error, timeout};
+ssl_connect(Sock, SSLOpts, Timeout) ->
+  try ssl:connect(Sock, SSLOpts, Timeout) of
+    {ok, _} = Result ->
+      Result;
+    Error ->
+      _ = catch gen_tcp:close(Sock),
+      Error
+  catch
+    Class:Reason:Stacktrace ->
+      _ = catch gen_tcp:close(Sock),
+      erlang:raise(Class, Reason, Stacktrace)
   end.
 
 recv(Socket, Length) ->

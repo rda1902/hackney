@@ -1,0 +1,19 @@
+services:
+  test:
+    build:
+      context: .
+      args:
+        OTP_VERSION: ${OTP_VERSION:-27.3.4.19}
+        REBAR3_VERSION: ${REBAR3_VERSION:-3.25.0}
+    working_dir: /workspace/hackney
+    volumes:
+      - .:/workspace/hackney
+      - build:/workspace/hackney/_build
+      - rebar-cache:/root/.cache/rebar3
+    # No host ports: httpbin and Cowboy fixtures are internal to each run.
+    stdin_open: true
+    tty: true
+
+volumes:
+  build:
+  rebar-cache:

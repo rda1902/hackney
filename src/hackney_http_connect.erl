@@ -73,7 +73,7 @@ connect(ProxyHost, ProxyPort, Opts, Timeout)
             hackney_ssl ->
               SSLOpts = ssl_opts(Host, Opts),
               %% upgrade the tcp connection
-              case ssl:connect(Socket, SSLOpts) of
+              case ssl:connect(Socket, SSLOpts, Timeout) of
                 {ok, SslSocket} ->
                   {ok, {Transport, SslSocket}};
                 Error ->
